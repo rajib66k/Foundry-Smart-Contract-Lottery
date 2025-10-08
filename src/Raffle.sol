@@ -17,6 +17,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
     error Raffle__NotEnoughETH(string reason);
     error Raffle__TransferFailed();
     error Raffle__RaffleNotOpen();
+    error Raffle__UpkeepNotNeeded(uint256 balance, uint256 playersLength, uint256 raffleState);
 
     // enum is a state type
     /* Type Declaration */
@@ -40,6 +41,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
 
     /* Events */
     event RaffleEntered(address indexed player);
+    event WinnerPicked(address indexed winner);
 
     // inheriting cunstroctor from VRFConsumerBaseV2Plus
     constructor(
@@ -75,9 +77,19 @@ contract Raffle is VRFConsumerBaseV2Plus {
         emit RaffleEntered(msg.sender);
     }
 
-    function pickWinner() external {
-        if ((block.timestamp - s_lastTimestamp) < I_INTERVAL) {
-            revert();
+    function checkUpkeep(bytes memory /* checkData */ ) public view returns (bool, bytes memory /* performData */ ) {
+        bool timeHasPassed = ((block.timestamp - s_lastTimestamp) >= I_INTERVAL);
+        bool isOpen = s_raffleState == RaffleState.OPEN;
+        bool hasBalance = address(this).balance > 0;
+        bool hasPlayer = s_players.length > 0;
+        bool upkeepNeeded = timeHasPassed && isOpen && hasBalance && hasPlayer;
+        return (upkeepNeeded, ""); // we have to return a empty bytes
+    }
+
+    function performUpkeep(bytes calldata /* performData */ ) external {
+        (bool upkeepNeeded,) = checkUpkeep("");
+        if (!upkeepNeeded) {
+            revert Raffle__UpkeepNotNeeded(address(this).balance, s_players.length, uint256(s_raffleState));
         }
 
         s_raffleState = RaffleState.CALCULATING;
@@ -95,14 +107,27 @@ contract Raffle is VRFConsumerBaseV2Plus {
             // Set nativePayment to true to pay for VRF requests with Sepolia ETH instead of LINK
             extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
         });
-        uint256 requestId = s_vrfCoordinator.requestRandomWords(request);
+        s_vrfCoordinator.requestRandomWords(request);
     }
 
-    function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
+    // CEI: Checks, Effects, Interactions Pattern
+    function fulfillRandomWords(uint256, /* requestId */ uint256[] calldata randomWords) internal override {
+        // Checks
+        // require, if else etc.
+        // writing checks in start is more gas eff. bcz we just reverting if conditions are not favorable
+        // if we revert after some stufs thease stufs wil cost some gas
+
+        // Effects (Internal Contract State)
         uint256 indexOfWinner = randomWords[0] % s_players.length;
         address payable recentWinner = s_players[indexOfWinner];
         s_recentWinner = recentWinner;
+
         s_raffleState = RaffleState.OPEN;
+        s_players = new address payable[](0);
+        s_lastTimestamp = block.timestamp;
+        emit WinnerPicked(s_recentWinner);
+
+        // Interactions (External Contract Interaction)
         (bool success,) = recentWinner.call{value: address(this).balance}("");
         if (!success) {
             revert Raffle__TransferFailed();
@@ -123,3 +148,6 @@ contract Raffle is VRFConsumerBaseV2Plus {
 // >> inherit VRFConsumerBaseV2Plus (bcz. the actual contract in doc is inherits this) >> import cunstructor (as inherited contract has cuntroctor we have to import it to our contract) >>
 // >> refactoring request id section (RandomWordsRequest has a sruct see VRFV2PlusClient) >> read all cunstuctos variables in doc >> then make variables acc. to cunstructor >>
 // >> add a undefined virtul function present in VRFConsumerBaseV2Plus as this is a abstract contract and make it override (this function will take input requestId)
+
+// ChainLink Automation
+// ChainLink DOC >> ChainLink Automation >> Guides >> Create Automation Compatibel Contracts
