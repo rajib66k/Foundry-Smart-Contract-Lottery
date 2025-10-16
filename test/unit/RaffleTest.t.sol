@@ -81,7 +81,7 @@ contract RaffleTest is Test {
         raffle.enterRaffle{value: entranceFee}();
         vm.warp(block.timestamp + interval + 1);
         vm.roll(block.number + 1);
-        raffle.performUpkeep(""); // failed here bcz. we have to add consumer in chainlink web by script
+        raffle.performUpkeep(""); // failed here before bcz. we have to add consumer in chainlink web by script
 
         // Act / Assert
         vm.expectRevert(Raffle.Raffle__RaffleNotOpen.selector);
