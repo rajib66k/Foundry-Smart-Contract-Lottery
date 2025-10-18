@@ -27,7 +27,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
 
     }
 
-    uint16 private constant REQUEST_CONFERMATION = 3;
+    uint16 private constant REQUEST_CONFIRMATION = 3;
     uint32 private constant NUM_WORDS = 1;
     uint256 private immutable I_ENTRANCE_FEE;
     uint256 private immutable I_INTERVAL;
@@ -102,7 +102,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
         VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient.RandomWordsRequest({
             keyHash: I_KEY_HASH,
             subId: I_SUBSCRIPTION_ID,
-            requestConfirmations: REQUEST_CONFERMATION,
+            requestConfirmations: REQUEST_CONFIRMATION,
             callbackGasLimit: I_CALL_BACK_GAS_LIMIT,
             numWords: NUM_WORDS,
             // Set nativePayment to true to pay for VRF requests with Sepolia ETH instead of LINK
